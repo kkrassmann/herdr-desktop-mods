@@ -1,13 +1,19 @@
-// Agents grouped by space; each row: status, session name (terminal title), context, folder · branch.
+// Agents grouped by machine (with 2+ machines: CPU/RAM in the header), then space; each row: status, session name (terminal title), context, folder · branch.
 // Row color follows status: working, blocked ("needs you"), done; idle stays plain.
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, terminals, run, theme, setAgentOrder } from "herdr";
-import { nameOf, groupBySpace, topStatus, subagentsOf, formatTokens, sessionInfo } from "./groups.js";
+import { agents, terminals, spaces, exec, run, theme, setAgentOrder } from "herdr";
+import { nameOf, groupBySpace, topStatus, subagentsOf, formatTokens, sessionInfo, groupByMachine, STATS_SCRIPT, parseStats, formatRam } from "./groups.js";
 
 // Same threshold as the statusline's !LIMIT: quality drops on a fuller context.
 const WARN_TOKENS = 400_000;
+// Each read starts node on every machine for ~0.5 s.
+const STATS_MS = 5000;
+const LOCAL = "This computer";
+
+// Machines that have spaces; null is this computer.
+const machineNames = () => [...new Set(spaces().map((s) => s.machine ?? null))];
 
 function programIcon(p, color) {
   if (!p?.icon) return null;
@@ -15,8 +21,56 @@ function programIcon(p, color) {
 }
 
 export default class AgentGroups extends View {
-  init() {
+  init(_props, cx) {
     this.folded = new Set();
+    this.stats = {}; // machine ("" = this computer) -> { cpu, used, total }
+    cx.timer.every(STATS_MS, (cx) => this.readStats(cx));
+    this.readStats(cx);
+  }
+
+  // Only with 2+ machines: a single machine shows no machine header, so no stats are needed.
+  readStats(cx) {
+    const names = machineNames();
+    if (names.length < 2 || this.reading) return;
+    this.reading = true;
+    cx.spawn(async (cx) => {
+      try {
+        const results = await Promise.all(names.map((m) =>
+          exec("node", ["-e", STATS_SCRIPT], { on: m }).then((r) => parseStats(r.stdout), () => null)));
+        this.stats = Object.fromEntries(names.map((m, i) => [m ?? "", results[i]]));
+      } finally {
+        this.reading = false;
+      }
+      cx.notify();
+    });
+  }
+
+  machineHeader(t, m) {
+    const key = `m:${m.machine ?? ""}`;
+    const open = !this.folded.has(key);
+    const st = this.stats[m.machine ?? ""];
+    const top = topStatus(m.members);
+    return h_flex()
+      .id(key)
+      .h(30)
+      .pt(8)
+      .px(8)
+      .gap(6)
+      .flex_none()
+      .items_center()
+      .text_size(12)
+      .font_semibold()
+      .text_color(t.foreground)
+      .cursor_pointer()
+      .on_click((_e, cx) => {
+        open ? this.folded.add(key) : this.folded.delete(key);
+        cx.notify();
+      })
+      .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(11).flex_none().text_color(t.dim))
+      .child(div().flex_1().min_w(0).truncate().child(m.machine ?? LOCAL))
+      .when(!open && top !== "idle", (el) => el.child(this.statusIcon(t, top)))
+      .when(Boolean(st), (el) => el.child(div().flex_none().text_size(10.5).font_normal().text_color(t.muted)
+        .child(`${st.cpu ?? "?"}% · ${formatRam(st.used, st.total)}`)));
   }
 
   // idle: theme foreground; the others take the theme's status color.
@@ -55,7 +109,7 @@ export default class AgentGroups extends View {
       .child(h_flex().h(20).gap(8).items_center()
         .child(h_flex().w(14).flex_none().justify_center().child(this.statusIcon(t, a.status)))
         .child(div().flex_1().min_w(0).truncate().text_color(c).when(a.status !== "idle", (el) => el.font_medium()).child(nameOf(a)))
-        .when(a.address.includes("/"), (el) => el.child(div().text_size(10).text_color(t.dim).child(a.address.split("/")[0])))
+        .when(!this.multi && a.address.includes("/"), (el) => el.child(div().text_size(10).text_color(t.dim).child(a.address.split("/")[0])))
         .when(Boolean(tokens), (el) => el.child(info.tokens >= WARN_TOKENS
           ? div().flex_none().px(4).rounded(4).bg(t.blocked + "26").text_size(11).font_semibold().text_color(t.blocked).child(tokens)
           : div().flex_none().text_size(11).text_color(t.muted).child(tokens)))
@@ -121,10 +175,13 @@ export default class AgentGroups extends View {
     const t = theme();
     const list = agents();
     setAgentOrder(list.map((a) => a.address));
-    const groups = groupBySpace(list);
     // Read once: every host read copies the whole list into JS.
     const all = new Map(terminals().map((k) => [k.address, k]));
-    const rows = groups.flatMap((g) => [this.header(t, g), ...(this.folded.has(g.id) ? [] : g.members.flatMap((a) => [this.row(t, a, all),...this.kids(t, a, all)]))]);
+    const spaceRows = (groups) => groups.flatMap((g) => [this.header(t, g), ...(this.folded.has(g.id) ? [] : g.members.flatMap((a) => [this.row(t, a, all), ...this.kids(t, a, all)]))]);
+    this.multi = machineNames().length >= 2;
+    const rows = this.multi
+      ? groupByMachine(list).flatMap((m) => [this.machineHeader(t, m), ...(this.folded.has(`m:${m.machine ?? ""}`) ? [] : [v_flex().pl(10).gap(1).children(spaceRows(m.spaces))])])
+      : spaceRows(groupBySpace(list));
     return v_flex()
       .size_full()
       .min_h(0)

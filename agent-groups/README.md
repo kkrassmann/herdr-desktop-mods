@@ -12,8 +12,22 @@ Slot-1
     portal-slot-1 · main
 ```
 
+With spaces on 2+ machines (`hc machine`), the machine becomes the top group, with its CPU load
+and RAM usage:
+
+```
+This computer            36% · 25.3/48 GB
+  Slot-1
+    ◌ API-RC  221k …
+home-mini                16% · 17.9/31 GB
+  247-kennzeichen-historie
+    ◌ License-plate-history …
+```
+
 ## What you see
 
+- **Machines** (only with spaces on 2+ machines): one header per machine, "This computer" first.
+  It shows CPU % and RAM used/total, measured every 5 s. Click folds it.
 - **Groups**: one per space, in space order. Click the header to fold it; folded, it shows the
   count and the most urgent status.
 - **Row, line 1**: status icon, session name (the terminal title Claude sets, e.g. after
@@ -35,7 +49,11 @@ machines (`hc machine`) too:
 | `claude.dir`, `claude.branch`, `claude.tokens` | your statusline, via `hooks/herdr-statusline.js` (only on change) |
 | `sub.<agent_id>=<agent_type>` | `hooks/herdr-subagents.ps1` (SubagentStart / SubagentStop) |
 
-The mod reads `terminals()` and redraws when labels change. No polling, no network.
+The mod reads `terminals()` and redraws when labels change. No network.
+
+Machine stats: with 2+ machines, every 5 s the mod runs `node -e <script>` on each machine
+(`exec` with `on`): two `os.cpus()` samples 500 ms apart for CPU %, `os.totalmem/freemem` for
+RAM. A machine without `node` shows no numbers. With one machine nothing runs.
 
 ## Install
 

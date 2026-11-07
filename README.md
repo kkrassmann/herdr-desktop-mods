@@ -4,7 +4,7 @@ Mods for the [Herdr app](https://herdr.dev).
 
 | Mod | What it does |
 |---|---|
-| [agent-groups](agent-groups/) | Agents list grouped by space: session name, status colors, context size, folder · branch, sub-agents. |
+| [agent-groups](agent-groups/) | Agents list grouped by machine (CPU/RAM) and space: session name, status colors, context size, folder · branch, sub-agents. |
 
 ## Install
 

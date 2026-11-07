@@ -7,6 +7,10 @@ row with its name, status color, context size, folder, branch and running sub-ag
 
 - Panel fills the `agents` block of the sidebar (`chrome` background, 1px `border` on top).
   Title "Agents" (11.5px, `dim`, medium) at 16px left, 14px top.
+- With spaces on 2+ machines (`spaces()[i].machine`, null = this computer): per machine a
+  header (30px, 12px semibold `foreground`, chevron, name or "This computer"), right side
+  `cpu% · used/total GB` (10.5px `muted`). Its spaces follow in a container indented 10px.
+  The remote machine tag on rows is hidden there.
 - Per space a header row: 28px high, chevron (`mods/workspace-chrome/chevron-down|right.svg`,
   11px), space name (11.5px semibold, `muted`). Folded: member count (`dim`) and, if not idle,
   the most urgent status icon.
@@ -34,7 +38,12 @@ row with its name, status color, context size, folder, branch and running sub-ag
 - `groups.js` (no herdr imports, tested by `groups.test.mjs` with node): `clean` (strips Claude's
   leading spinner glyph from titles), `nameOf` (title → tab name → program → address),
   `groupBySpace`, `topStatus` (blocked > done > working > idle), `subagentsOf` (labels `sub.*`),
-  `sessionInfo` (labels `claude.dir|branch|tokens`), `formatTokens` (`203k`, `1.2M`).
+  `sessionInfo` (labels `claude.dir|branch|tokens`), `formatTokens` (`203k`, `1.2M`),
+  `machineOf` (address prefix `home-mini/t1`), `groupByMachine`, `STATS_SCRIPT` (node one-liner:
+  CPU % from two `os.cpus()` samples 500 ms apart, RAM from `os.totalmem/freemem`, prints JSON),
+  `parseStats`, `formatRam`.
+- Stats: `cx.timer.every(5000)` → `exec("node", ["-e", STATS_SCRIPT], { on: machine })` for all
+  machines in parallel, only with 2+ machines; a failed exec gives no numbers.
 - `hooks/herdr-subagents.ps1 start|stop|clear`: Claude Code `SubagentStart` / `SubagentStop` /
   `SessionStart(startup|resume)` + `SessionEnd`; `hc label $HC_TERMINAL_ID sub.<agent_id>=<agent_type>`,
   one label per sub-agent so parallel hooks never race. Validates id `^[A-Za-z0-9_-]+$`, type
@@ -58,3 +67,4 @@ row with its name, status color, context size, folder, branch and running sub-ag
 - Two Claude sessions in one space show under one header with their own titles.
 - A running sub-agent shows under its session and disappears when it ends.
 - A session's row shows the same token count as its statusline; ≥ 400k turns red.
+- With a space on a second machine, both machines head their groups with CPU % and RAM.
