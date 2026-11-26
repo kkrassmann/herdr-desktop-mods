@@ -242,6 +242,15 @@ const syncHerdrLabel = async ($: EngineInterface, d: TickerData | null) => {
   }
 }
 
+// ticker + question state gone, herdr label removed; band toggles (isOpen, hideDone) are preferences and stay
+const clearTicker = async ($: EngineInterface) => {
+  await update($, data, () => null)
+  await update($, openQuestions, () => [])
+  await update($, sentQuestions, () => [])
+  await update($, explanations, () => ({}))
+  void syncHerdrLabel($, null)
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.tool.register({
@@ -304,9 +313,16 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'ticker-clear' }, async $ => {
-    await update($, data, () => null)
-    void syncHerdrLabel($, null)
+    await clearTicker($)
     return { text: 'Ticker cleared.' }
+  })
+
+  // /clear starts a new conversation without session.start -> old ticker would stay until the next tick
+  on('session.end', async ($, e, next) => {
+    if (e.reason === 'clear') {
+      await clearTicker($)
+    }
+    return next(e)
   })
 
   // compact one-liner above the prompt

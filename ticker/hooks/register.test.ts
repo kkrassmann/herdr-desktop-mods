@@ -329,6 +329,21 @@ for (const surface of ['terminal', 'desktop'] as const) {
   })
 }
 
+test('/clear (session.end reason clear) resets the ticker, other ends keep it', async ($, on) => {
+  stubEngine(on)
+  on('session.end', (_$, e) => ({ sessionId: e.sessionId }))
+  on('ui.log', () => ({ value: undefined }))
+  await $.tool.call({ tool: TOOL, ...TICK })
+  const ui = await $.ui.mount({ plugin: 'ticker', surface: 'terminal', component: 'Pane', requestId: 'ticker', props: PANE_PROPS })
+  const paneTexts = async () => (await ui.findAll({ type: 'Text' })).map(t => t.text)
+
+  await $.session.end({ reason: 'other', sessionId: 's1', resume: { id: 's1' } })
+  expect(await paneTexts()).not.toEqual(['Noch kein Tick. /ticker starten.'])
+
+  await $.session.end({ reason: 'clear', sessionId: 's1', resume: { id: 's1' } })
+  expect(await paneTexts()).toEqual(['Noch kein Tick. /ticker starten.'])
+})
+
 test('tool call without topic is denied', async ($, on) => {
   stubEngine(on)
   const res = await $.tool.call({ tool: TOOL, steps: TICK.steps, total: 10 })
