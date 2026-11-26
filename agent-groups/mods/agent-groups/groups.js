@@ -5,22 +5,63 @@ export const clean = (s) => (s ?? "").replace(/^[^\p{L}\p{N}]+/u, "").trim();
 
 export const nameOf = (a) => clean(a.title) || a.tab_name || a.program?.name || a.address;
 
-// Neighbours in agents() share a space (space, tab, pane order).
+// Spaces with the same name share one group, in first-seen order; a nameless space keeps its own.
 export function groupBySpace(list) {
-  const groups = [];
+  const groups = new Map();
   for (const a of list) {
-    if (groups.at(-1)?.id === a.space) groups.at(-1).members.push(a);
-    else groups.push({ id: a.space, label: a.space_name || "", members: [a] });
+    const id = a.space_name ? `name:${a.space_name}` : a.space;
+    if (!groups.has(id)) groups.set(id, { id, label: a.space_name || "", members: [] });
+    groups.get(id).members.push(a);
   }
-  return groups;
+  return [...groups.values()];
 }
 
 const RANK = { blocked: 4, done: 3, working: 2, idle: 1 };
 export const topStatus = (members) => members.reduce((m, a) => ((RANK[a.status] ?? 0) > (RANK[m] ?? 0) ? a.status : m), "idle");
 
-// Claude's in-process sub-agents, from the labels its SubagentStart/Stop hook writes (hooks/herdr-subagents.ps1).
+// Claude's in-process sub-agents, from the labels its SubagentStart/Stop hook writes (hooks/herdr-subagents.js).
 export const subagentsOf = (labels) =>
   Object.entries(labels ?? {}).filter(([k, v]) => k.startsWith("sub.") && v).map(([k, v]) => ({ id: k.slice(4), type: v }));
+
+// Claude ticker state, labeled as JSON {total, steps: [{name, status, percent}]} by the ticker mod; anything else -> null.
+export function tickerOf(labels) {
+  try {
+    const v = JSON.parse(labels?.ticker ?? "");
+    return Array.isArray(v?.steps) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+const pct = (s) => (s.status !== "done" && s.percent != null ? ` ${s.percent}%` : "");
+export const stepLabel = (s) => s.name + pct(s);
+
+// Ticker step status -> agent status, so the list's icons and colors apply.
+const STEP_STATUS = { done: "done", active: "working", todo: "idle" };
+export const stepStatus = (s) => STEP_STATUS[s.status] ?? "idle";
+
+// Favorite key: the Claude session id survives a resume in a new terminal; else the terminal address.
+export const favKey = (a, labels) => labels?.["resume.session"] || a.address;
+
+// Groups in the dragged order; groups never dragged keep their own order after the known ones.
+export function orderGroups(groups, order) {
+  const rank = (id) => (order.includes(id) ? order.indexOf(id) : order.length);
+  return [...groups].sort((x, y) => rank(x.id) - rank(y.id));
+}
+
+// Moves `from` onto `to`'s place: dragged down it lands after `to`, dragged up before it.
+export function moveId(ids, from, to) {
+  const out = ids.filter((id) => id !== from);
+  out.splice(ids.indexOf(to), 0, from);
+  return out;
+}
+
+// Finished tickers already looked at: one "<favKey>|<ticker label>" per session, so a new ticker shows its check again.
+export const seenId = (key, raw) => `${key}|${raw}`;
+export function markSeen(set, key, raw) {
+  for (const s of set) if (s.startsWith(key + "|")) set.delete(s);
+  set.add(seenId(key, raw));
+}
 
 // Same format as the Claude statusline: 203k, 1.2M.
 export function formatTokens(n) {

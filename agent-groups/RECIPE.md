@@ -44,7 +44,7 @@ row with its name, status color, context size, folder, branch and running sub-ag
   `parseStats`, `formatRam`.
 - Stats: `cx.timer.every(5000)` → `exec("node", ["-e", STATS_SCRIPT], { on: machine })` for all
   machines in parallel, only with 2+ machines; a failed exec gives no numbers.
-- `hooks/herdr-subagents.ps1 start|stop|clear`: Claude Code `SubagentStart` / `SubagentStop` /
+- `hooks/herdr-subagents.js start|stop|clear`: Claude Code `SubagentStart` / `SubagentStop` /
   `SessionStart(startup|resume)` + `SessionEnd`; `hc label $HC_TERMINAL_ID sub.<agent_id>=<agent_type>`,
   one label per sub-agent so parallel hooks never race. Validates id `^[A-Za-z0-9_-]+$`, type
   `^[\w:.-]+$` (else `agent`).

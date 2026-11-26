@@ -47,7 +47,8 @@ machines (`hc machine`) too:
 | Label | Written by |
 |---|---|
 | `claude.dir`, `claude.branch`, `claude.tokens` | your statusline, via `hooks/herdr-statusline.js` (only on change) |
-| `sub.<agent_id>=<agent_type>` | `hooks/herdr-subagents.ps1` (SubagentStart / SubagentStop) |
+| `sub.<agent_id>=<agent_type>` | `hooks/herdr-subagents.js` (SubagentStart / SubagentStop) |
+| `ticker` (JSON `{total, steps}`) | the Claude mod [ticker](../ticker/): progress leads the title, its steps replace the sub-agents |
 
 The mod reads `terminals()` and redraws when labels change. No network.
 
@@ -81,22 +82,19 @@ In `~/.config/herdr-app/layouts/my-main.json`, change the block with `"id": "age
 
 ### 3. Claude Code hooks (sub-agents)
 
-Windows only for now (PowerShell). Add to `~/.claude/settings.json` in `hooks`, beside the hooks
-you already have (if an event exists, add the entry to its list):
+`node install.js` in the repo root sets them (see the main README). By hand: add to
+`~/.claude/settings.json` in `hooks`, beside the hooks you already have (if an event exists, add
+the entry to its list). `<REPO>` = path of your clone, forward slashes:
 
 ```json
 "SessionStart": [{ "matcher": "^(startup|resume)$", "hooks": [
-  { "type": "command", "timeout": 10,
-    "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"<HOME>\\.config\\herdr-app\\mods\\agent-groups\\hooks\\herdr-subagents.ps1\" clear" } ] }],
+  { "type": "command", "timeout": 10, "command": "node \"<REPO>/agent-groups/mods/agent-groups/hooks/herdr-subagents.js\" clear" } ] }],
 "SessionEnd": [{ "hooks": [
-  { "type": "command", "timeout": 10,
-    "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"<HOME>\\.config\\herdr-app\\mods\\agent-groups\\hooks\\herdr-subagents.ps1\" clear" } ] }],
+  { "type": "command", "timeout": 10, "command": "node \"<REPO>/agent-groups/mods/agent-groups/hooks/herdr-subagents.js\" clear" } ] }],
 "SubagentStart": [{ "matcher": "", "hooks": [
-  { "type": "command", "timeout": 10,
-    "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"<HOME>\\.config\\herdr-app\\mods\\agent-groups\\hooks\\herdr-subagents.ps1\" start" } ] }],
+  { "type": "command", "timeout": 10, "command": "node \"<REPO>/agent-groups/mods/agent-groups/hooks/herdr-subagents.js\" start" } ] }],
 "SubagentStop": [{ "hooks": [
-  { "type": "command", "timeout": 10,
-    "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"<HOME>\\.config\\herdr-app\\mods\\agent-groups\\hooks\\herdr-subagents.ps1\" stop" } ] }]
+  { "type": "command", "timeout": 10, "command": "node \"<REPO>/agent-groups/mods/agent-groups/hooks/herdr-subagents.js\" stop" } ] }]
 ```
 
 `clear` removes leftover labels after a crash (no `SubagentStop` comes then).
@@ -116,7 +114,8 @@ Without a statusline, line 2 shows only the folder (from the terminal's cwd).
 ### 5. Check
 
 1. `herdr-app check ~/.config/herdr-app/mods/agent-groups`
-2. `node ~/.config/herdr-app/mods/agent-groups/groups.test.mjs` prints `groups ok`.
+2. `node ~/.config/herdr-app/mods/agent-groups/groups.test.mjs` prints `groups ok`,
+   `node ~/.config/herdr-app/mods/agent-groups/hooks/herdr-subagents.test.js` prints `herdr-subagents ok`.
 3. Start Claude in a Herdr terminal and send a prompt: the row shows folder, branch and tokens.
    Ask it to run a sub-agent: it shows under the row while it runs.
 
@@ -125,9 +124,8 @@ Without a statusline, line 2 shows only the folder (from the terminal's cwd).
 - Claude sub-agents have no status of their own: they show as working while they run, by type
   (`cd:coding`), without their description.
 - Sub-agents that started before the hooks were installed don't show.
-- Each hook starts `powershell` (~0.3 s per sub-agent start).
+- Each hook starts `node` (one process per sub-agent start/stop).
 - No narrow view for the collapsed sidebar, no pinning, no sorting.
-- Hooks are Windows-only (PowerShell); no macOS/Linux version yet.
 
 ## Pairs well with
 

@@ -1,0 +1,6 @@
+{
+  "name": "ticker",
+  "version": "0.1.0",
+  "description": "Live progress ticker: band above the prompt + detail pane, fed by the /ticker skill via a tool",
+  "types": "./types/index.d.ts"
+}
