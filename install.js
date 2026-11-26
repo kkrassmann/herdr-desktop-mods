@@ -64,7 +64,15 @@ function report(label, detail) {
 function installClaude(home, dryRun) {
   const file = path.join(home, '.claude', 'settings.json');
   const text = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '{}';
-  const before = JSON.parse(text);
+  let before;
+  try {
+    before = JSON.parse(text);
+  } catch (err) {
+    // never rewrite a file we cannot read: the user's other settings would be lost
+    report('ERROR', `${file} is not valid JSON (${err.message}): fix it, then rerun`);
+    process.exitCode = 1;
+    return;
+  }
   const after = mergeSettings(before, REPO, path.delimiter);
   if (JSON.stringify(before) === JSON.stringify(after)) return report('OK', `${file}: ticker + sub-agent hooks already set`);
 
